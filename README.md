@@ -1,79 +1,124 @@
 # misc-fixed-ttf
 
-X.Org `font-misc-misc` 1.1.3 BDFs converted by nixpkgs Bits'N'Picas to
-monospaced, pixel-outline TrueType (not embedded bitmaps), usable by kitty.
-Source: https://xorg.freedesktop.org/releases/individual/font/font-misc-misc-1.1.3.tar.xz
-(pinned SHA-256 in `package.nix`). Upstream COPYING says **“Public domain font.
-Share and enjoy.”**; `meta.license = lib.licenses.publicDomain`.
+The classic X11 **misc-fixed** bitmap fonts (the ones behind `xterm -fn 8x13`)
+as pixel-exact TrueType, for terminals and apps that no longer load bitmap fonts,
+such as kitty, foot and anything on Wayland.
 
-```sh
-nix build
-nix flake check
-```
+![Misc Fixed specimen, all sizes](docs/specimen.png)
 
-Installs 16 files to `$out/share/fonts/truetype/MiscFixed-<cell>-<style>.ttf`
-and the upstream licence to `$out/share/doc/misc-fixed-ttf/COPYING`.
-Families: `Misc Fixed 6x13`, `Misc Fixed 7x13`, `Misc Fixed 7x14`,
-**`Misc Fixed 8x13`** (chosen terminal font), `Misc Fixed 9x15`,
-`Misc Fixed 9x18`, `Misc Fixed 10x20`. All have Regular; all except 10x20
-have Bold; 6x13, 7x13 and 8x13 also have Oblique. No synthesized styles.
-Each style retains exactly its own upstream coverage; e.g. 8x13 has
-3703/1141/1295 encoded glyphs in Regular/Bold/Oblique respectively. Bold
-and Oblique therefore lack some characters present in Regular (including
-some box drawing); this is an upstream limitation, not conversion loss.
+<p align="center"><img src="docs/terminal.png" alt="foot terminal using Misc Fixed 8x13" width="720"></p>
+<p align="center"><sub>foot with <code>Misc Fixed 8x13</code>, unhinted, at its native 13 px (shown at 2×)</sub></p>
 
-## Declarative use
+The glyphs are converted from X.Org's `font-misc-misc` 1.1.3 BDFs with
+[Bits'N'Picas](https://github.com/kreativekorp/bitsnpicas) into square-pixel
+**outlines**, not embedded bitmaps. At the native pixel size they render
+identically to the original bitmaps.
 
-Add this flake as `inputs.misc-fixed-ttf` (with `inputs.nixpkgs.follows =
-"nixpkgs"`), then either use `inputs.misc-fixed-ttf.packages.x86_64-linux.default`
-or add `inputs.misc-fixed-ttf.overlays.default` to `nixpkgs.overlays`, exposing
-`pkgs.misc-fixed-ttf`. In NixOS:
+## Families
+
+| Family | Regular | Bold | Oblique |
+|---|:-:|:-:|:-:|
+| `Misc Fixed 6x13` | ✓ | ✓ | ✓ |
+| `Misc Fixed 7x13` | ✓ | ✓ | ✓ |
+| `Misc Fixed 7x14` | ✓ | ✓ | |
+| **`Misc Fixed 8x13`** | ✓ | ✓ | ✓ |
+| `Misc Fixed 9x15` | ✓ | ✓ | |
+| `Misc Fixed 9x18` | ✓ | ✓ | |
+| `Misc Fixed 10x20` | ✓ | | |
+
+There are no synthesized styles. Each style keeps exactly the upstream glyph
+coverage. For example, 8x13 has 3703 / 1141 / 1295 glyphs in Regular / Bold /
+Oblique, so Bold and Oblique lack some characters (including some box drawing)
+that Regular has. That gap is in the original fonts, not caused by conversion.
+
+## Install
 
 ```nix
+# flake.nix
+inputs.misc-fixed-ttf = {
+  url = "github:Gustlik501/misc-fixed-ttf";
+  inputs.nixpkgs.follows = "nixpkgs";
+};
+
+# then add the overlay (pkgs.misc-fixed-ttf) …
+nixpkgs.overlays = [ inputs.misc-fixed-ttf.overlays.default ];
+
+# … and install it. NixOS:
 fonts.packages = [ pkgs.misc-fixed-ttf ];
+# or Home Manager:
+home.packages = [ pkgs.misc-fixed-ttf ];
+fonts.fontconfig.enable = true;
 ```
 
-In Home Manager: `home.packages = [ pkgs.misc-fixed-ttf ];` and
-`fonts.fontconfig.enable = true;`. Kitty:
+Without the overlay, use `inputs.misc-fixed-ttf.packages.x86_64-linux.default`.
+Or try it with `nix build github:Gustlik501/misc-fixed-ttf`.
 
-```conf
-font_family Misc Fixed 8x13
-bold_font auto
-italic_font auto
-bold_italic_font auto
-font_size 9.75
+## Getting crisp pixels
+
+Use the font at its **native pixel height** (13 px for 8x13) or an integer
+multiple of it.
+
+- **foot:** `font=Misc Fixed 8x13:pixelsize=13`
+- **kitty:** at 96 DPI, 9.75 pt is exactly 13 px:
+
+  ```conf
+  font_family Misc Fixed 8x13
+  font_size   9.75
+  ```
+
+  If it still looks soft, try `text_composition_strategy legacy`.
+
+FreeType's autohinter can nudge isolated accent pixels even at native size. For
+exact bitmap fidelity, turn hinting off for these families in fontconfig:
+
+```xml
+<match target="font">
+  <test name="family" compare="contains"><string>Misc Fixed</string></test>
+  <edit name="hinting" mode="assign"><bool>false</bool></edit>
+  <edit name="antialias" mode="assign"><bool>false</bool></edit>
+</match>
 ```
 
-At **96 DPI**, 9.75 pt = 13 px, the crisp native size (8 px advance).
-Use integer multiples, or adjust for the actual display DPI/scale. If blurry,
-try `text_composition_strategy legacy` before extra antialiasing tweaks.
-FreeType autohinting can move isolated accent pixels even at native size;
-for literal bitmap fidelity disable hinting for these families in Fontconfig
-(e.g. `hinting=false`, `autohint=false`). No global rendering changes or
-Fontconfig rules are installed by this package.
+The package installs fonts only, with no fontconfig rules or other global
+rendering changes.
 
-## Verification
+## What gets installed
 
-Build-time checks assert every BDF codepoint survives, uniform advances,
-outline tables, family and style flags. Metadata normalization follows the
-provided manual rename script, also setting `post.isFixedPitch` (the converter
-leaves it unset) and stable timestamps.
+- `share/fonts/truetype/MiscFixed-<cell>-<style>.ttf` (16 files)
+- `share/doc/misc-fixed-ttf/COPYING` (upstream notice)
 
-`fc-scan` reports the expected 16 family/style pairs and spacing=100. With an
-isolated `FONTCONFIG_FILE` containing only this output, `kitty +runpy` lists
-8x13 Regular/Bold/Oblique as `MONO`, scalable outlines.
+<details>
+<summary><b>Verification</b></summary>
 
-To repeat the rendering and discovery checks, build the original PCFs:
+Build-time checks assert that every BDF codepoint survives, advances are
+uniform, and outline tables, family names and style flags are correct. Metadata
+normalization also sets `post.isFixedPitch`, which the converter leaves unset,
+and stable timestamps.
+
+`fc-scan` reports the 16 expected family/style pairs with spacing = 100 (mono).
+Rendered with ImageMagick at 13 px with hinting off, all three 8x13 styles show
+**zero differing pixels** against the original PCFs. The samples cover ASCII,
+Latin-1, Latin Extended and box drawing, limited to each BDF's coverage.
+
+To repeat the rendering comparison:
 
 ```sh
 nix build --impure --expr '(import (builtins.getFlake (toString ./.)).inputs.nixpkgs { system = "x86_64-linux"; }).xorg.fontmiscmisc' --out-link result-pcf
 nix develop --command python verify.py
 ```
 
-`.work/sample-8x13.png` is the Regular sample; per-style TTF/PCF samples,
-Fontconfig and kitty reports are also in `.work/`. ImageMagick at 13 px,
-`+antialias -set type:hinting off`, produces **zero differing pixels for all
-three styles** on ASCII, Latin-1, Latin Extended and box-drawing samples
-(filtered to each BDF's actual coverage). With default autohinting some
-accent pixels shift; outlines themselves preserve the bitmap geometry.
-The live kitty renderer/session was not started or modified.
+</details>
+
+## License
+
+The fonts are **public domain**. Upstream's notice reads: *"Public domain font.
+Share and enjoy."* The source tarball is pinned by SHA-256 in `package.nix`.
+
+---
+
+Part of a small retro-desktop set for Hyprland:
+[hypr-wmdeco](https://github.com/Gustlik501/hypr-wmdeco) ·
+[irixium-gtk-theme](https://github.com/Gustlik501/irixium-gtk-theme) ·
+[chicago95-cursors](https://github.com/Gustlik501/chicago95-cursors) ·
+**misc-fixed-ttf** ·
+[nextlike-icons](https://github.com/Gustlik501/nextlike-icons)
